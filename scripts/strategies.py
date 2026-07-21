@@ -11,6 +11,13 @@ Inspired by 7 options trading bibles:
 6. "立体化交易时代：40种期权投资策略" (Overby) — 40 strategies
 7. "波动率交易" (Sinclair) — Variance premium, Kelly, psychology
 
+8. "使用铁秃鹰期权进行投机获利" (Benklifa) — Iron Condor specialist book
+   - Delta ~10 as wing anchor
+   - Vega/Theta ratio for entry timing
+   - Keep 1/3 credit as profit target
+   - 7-8 weeks to expiry ideal
+   - 3 factors: Time, Position, Price (optimize 2 of 3)
+
 Integrated framework:
 1. Darwinian quality filter — only trade quality businesses
 2. OI/Max Pain analysis — market structure from 期权36课
@@ -19,6 +26,7 @@ Integrated framework:
 5. Dynamic adjustment framework — 3-step from 期权新世界
 6. Kelly criterion sizing — risk management from 波动率交易
 7. Variance premium detection — edge from 波动率交易
+8. Iron Condor specialist analysis — Benklifa's Delta ~10 wing rules
 """
 
 import json
@@ -415,6 +423,137 @@ def dynamic_adjustment_framework(data: dict) -> dict:
     )
     
     return framework
+
+
+# ============================================================
+# IRON CONDOR SPECIALIST ANALYSIS (Benklifa — 铁秃鹰期权)
+# ============================================================
+
+def analyze_iron_condor_setup(data: dict, calls: list, puts: list, current_price: float) -> dict:
+    """
+    Iron Condor specialist analysis based on Benklifa's "Profiting with Iron Condor Options".
+    
+    Core principles:
+    1. Delta ~10 as wing anchor — the single best entry signal
+    2. Vega/Theta ratio — key health metric (target < 3:1)
+    3. 7-8 weeks to expiry ideal — balance of time decay vs risk
+    4. Keep 1/3 of initial credit as profit target — then close
+    5. Three factors: Time, Position, Price — can only optimize 2 of 3
+    6. Iron Condor is a TRADE, not an income strategy — high risk
+    7. Avoid <5 weeks to expiry — too dangerous
+    8. Plan-based trading: entry→adjustment→exit all pre-planned
+    """
+    result = {
+        "viable": False,
+        "recommended_put_wing": None,
+        "recommended_call_wing": None,
+        "width": None,
+        "delta_put_wing": None,
+        "delta_call_wing": None,
+        "vega_theta_ratio": None,
+        "profit_target_1_3_credit": None,
+        "benklifa_grade": "",
+        "warnings": [],
+        "entry_advice": "",
+    }
+    
+    if not calls or not puts or not current_price:
+        return result
+    
+    # Find strikes with Delta ~10 (Benklifa's core rule)
+    put_candidates = []
+    for p in puts:
+        strike = p["strike"]
+        if strike < current_price * 0.95:
+            dist_pct = (current_price - strike) / current_price
+            est_delta = max(0.01, 0.5 - dist_pct * 3.0)
+            if 0.05 <= est_delta <= 0.20:
+                put_candidates.append({
+                    "strike": strike, "est_delta": round(est_delta, 3),
+                    "dist_pct": round(dist_pct * 100, 1),
+                    "oi": p.get("open_interest", 0), "volume": p.get("volume", 0),
+                })
+    
+    call_candidates = []
+    for c in calls:
+        strike = c["strike"]
+        if strike > current_price * 1.05:
+            dist_pct = (strike - current_price) / current_price
+            est_delta = max(0.01, 0.5 - dist_pct * 3.0)
+            if 0.05 <= est_delta <= 0.20:
+                call_candidates.append({
+                    "strike": strike, "est_delta": round(est_delta, 3),
+                    "dist_pct": round(dist_pct * 100, 1),
+                    "oi": c.get("open_interest", 0), "volume": c.get("volume", 0),
+                })
+    
+    if not put_candidates or not call_candidates:
+        result["warnings"].append("No Delta ~10 strikes found")
+        return result
+    
+    put_candidates.sort(key=lambda x: abs(x["est_delta"] - 0.10))
+    call_candidates.sort(key=lambda x: abs(x["est_delta"] - 0.10))
+    best_put = put_candidates[0]
+    best_call = call_candidates[0]
+    
+    width = best_call["strike"] - best_put["strike"]
+    width_pct = width / current_price * 100
+    
+    if width_pct < 5:
+        result["warnings"].append(
+            f"Wings too narrow ({width_pct:.1f}%). Need 5-10%+ width for adjustment."
+        )
+    
+    result["viable"] = True
+    result["recommended_put_wing"] = best_put["strike"]
+    result["recommended_call_wing"] = best_call["strike"]
+    result["delta_put_wing"] = best_put["est_delta"]
+    result["delta_call_wing"] = best_call["est_delta"]
+    result["width"] = width
+    result["width_pct"] = round(width_pct, 1)
+    
+    # Vega/Theta ratio estimation
+    ivs = []
+    for exp in data.get("expirations", []):
+        iv = exp.get("summary", {}).get("avg_implied_volatility")
+        if iv: ivs.append(iv)
+    avg_iv = sum(ivs) / len(ivs) if ivs else 0.25
+    
+    days = data.get("expirations", [{}])[0].get("days_to_expiry", 45)
+    if days > 0:
+        rough_vega = avg_iv * 0.01 * width * (days / 365) ** 0.5
+        rough_theta = (avg_iv * width * 0.1) * 0.03 * (30 / max(days, 1))
+        if rough_theta > 0:
+            result["vega_theta_ratio"] = round(rough_vega / rough_theta, 2)
+    
+    # Grading
+    grade = []
+    if 35 <= days <= 60:
+        grade.append(f"✓ DTE={days} (ideal 35-60)")
+    elif days < 35:
+        grade.append(f"⚠ DTE={days} — avoid <5 weeks per Benklifa")
+    else:
+        grade.append(f"✓ DTE={days} — acceptable")
+    
+    vt = result.get("vega_theta_ratio", 999)
+    if vt and vt < 3:
+        grade.append(f"✓ Vega/Theta={vt:.1f} (target <3)")
+    elif vt:
+        grade.append(f"⚠ Vega/Theta={vt:.1f} (target <3)")
+    
+    result["benklifa_grade"] = "; ".join(grade)
+    est_credit = width * avg_iv * 0.3
+    result["profit_target_1_3_credit"] = round(est_credit / 3, 2)
+    
+    result["entry_advice"] = (
+        f"Benklifa's rules: Delta~10 wings (put={best_put['strike']}, call={best_call['strike']}); "
+        f"Target {max(35,60)} DTE; Close at 1/3 of max credit; "
+        f"'Iron Condor is a TRADE, not income — it CAN lose everything'; "
+        f"3 factors: Time✓ Position✓ Price — optimize 2 of 3."
+    )
+    
+    return result
+
 
 def assess_darwinian_quality(data: dict) -> tuple:
     """
@@ -1173,6 +1312,8 @@ def recommend_strategies(data: dict) -> list:
         "max_pain": compute_max_pain(calls, puts) if calls and puts else None,
         "oi_concentration": analyze_oi_concentration(calls, puts) if calls and puts else {},
         "vol_smile": analyze_vol_smile(calls, puts, current_price) if calls and puts and current_price else {},
+        "iron_condor_analysis": analyze_iron_condor_setup(data, calls, puts, current_price)
+                                   if calls and puts and current_price else {},
         "pcr_analysis": pcr,
         "variance_premium": variance_premium,
         "dynamic_adjustment": dynamic_adj,
