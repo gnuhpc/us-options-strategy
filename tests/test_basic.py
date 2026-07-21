@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Basic tests for the options strategy scripts."""
+"""Basic tests for the options strategy scripts — Darwinian version."""
 
 import json
 import sys
 import os
 import unittest
 
-# Add parent to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scripts.strategies import (
@@ -14,21 +13,21 @@ from scripts.strategies import (
     classify_volatility,
     Sentiment,
     Volatility,
+    DarwinianQuality,
+    assess_darwinian_quality,
+    detect_punctuated_equilibrium,
     recommend_strategies,
 )
 
 
 class TestClassifySentiment(unittest.TestCase):
     def test_bullish_sentiment(self):
-        """Low PC ratio should indicate bullish sentiment."""
         data = {
             "expirations": [
                 {
                     "summary": {
-                        "pc_volume_ratio": 0.3,
-                        "pc_oi_ratio": 0.4,
-                        "iv_skew": -0.1,
-                        "avg_implied_volatility": 0.25,
+                        "pc_volume_ratio": 0.3, "pc_oi_ratio": 0.4,
+                        "iv_skew": -0.1, "avg_implied_volatility": 0.25,
                     }
                 }
             ]
@@ -38,15 +37,12 @@ class TestClassifySentiment(unittest.TestCase):
         self.assertGreater(confidence, 0.0)
 
     def test_bearish_sentiment(self):
-        """High PC ratio should indicate bearish sentiment."""
         data = {
             "expirations": [
                 {
                     "summary": {
-                        "pc_volume_ratio": 2.0,
-                        "pc_oi_ratio": 1.8,
-                        "iv_skew": 0.15,
-                        "avg_implied_volatility": 0.35,
+                        "pc_volume_ratio": 2.0, "pc_oi_ratio": 1.8,
+                        "iv_skew": 0.15, "avg_implied_volatility": 0.35,
                     }
                 }
             ]
@@ -56,15 +52,12 @@ class TestClassifySentiment(unittest.TestCase):
         self.assertGreater(confidence, 0.0)
 
     def test_neutral_sentiment(self):
-        """Balanced ratios should indicate neutral sentiment."""
         data = {
             "expirations": [
                 {
                     "summary": {
-                        "pc_volume_ratio": 0.9,
-                        "pc_oi_ratio": 0.95,
-                        "iv_skew": 0.01,
-                        "avg_implied_volatility": 0.25,
+                        "pc_volume_ratio": 0.9, "pc_oi_ratio": 0.95,
+                        "iv_skew": 0.01, "avg_implied_volatility": 0.25,
                     }
                 }
             ]
@@ -73,7 +66,6 @@ class TestClassifySentiment(unittest.TestCase):
         self.assertEqual(sentiment, Sentiment.NEUTRAL)
 
     def test_empty_data(self):
-        """Empty data should return neutral."""
         sentiment, confidence = classify_sentiment({"expirations": []})
         self.assertEqual(sentiment, Sentiment.NEUTRAL)
 
@@ -116,13 +108,95 @@ class TestClassifyVolatility(unittest.TestCase):
         self.assertEqual(avg, 0.0)
 
 
+class TestDarwinianQuality(unittest.TestCase):
+    def test_stable_large_cap(self):
+        """Stable sector, large cap, low beta = exceptional quality."""
+        data = {
+            "current_price": 150.0,
+            "stock_info": {
+                "sector": "Consumer Defensive",
+                "beta": 0.6,
+                "dividend_yield": 0.025,
+                "market_cap": 500e9,
+                "fifty_two_week_high": 180.0,
+                "fifty_two_week_low": 120.0,
+            },
+        }
+        quality, score, reasons = assess_darwinian_quality(data)
+        self.assertIn(quality, (DarwinianQuality.EXCEPTIONAL, DarwinianQuality.GOOD))
+        self.assertGreater(score, 0.0)
+
+    def test_speculative_tech(self):
+        """Fast-changing sector, no dividend, high beta = speculative."""
+        data = {
+            "current_price": 50.0,
+            "stock_info": {
+                "sector": "Technology",
+                "beta": 2.5,
+                "dividend_yield": 0.0,
+                "market_cap": 500e6,
+                "fifty_two_week_high": 150.0,
+                "fifty_two_week_low": 30.0,
+            },
+        }
+        quality, score, reasons = assess_darwinian_quality(data)
+        self.assertIn(quality, (DarwinianQuality.POOR, DarwinianQuality.SPECULATIVE, DarwinianQuality.AVERAGE))
+
+    def test_no_info(self):
+        """No stock info should still return a reasonable default."""
+        data = {"current_price": 100.0, "stock_info": {}}
+        quality, score, reasons = assess_darwinian_quality(data)
+        self.assertIn(quality, DarwinianQuality)
+
+
+class TestPunctuatedEquilibrium(unittest.TestCase):
+    def test_normal_conditions(self):
+        """Normal conditions should not detect punctuation."""
+        data = {
+            "current_price": 150.0,
+            "stock_info": {
+                "fifty_two_week_high": 180.0,
+                "fifty_two_week_low": 120.0,
+            },
+            "expirations": [
+                {"summary": {"avg_implied_volatility": 0.25}},
+            ],
+        }
+        result = detect_punctuated_equilibrium(data)
+        self.assertFalse(result["is_punctuation"])
+
+    def test_fear_punctuation(self):
+        """Near 52-week low + high IV = fear punctuation."""
+        data = {
+            "current_price": 105.0,
+            "stock_info": {
+                "fifty_two_week_high": 200.0,
+                "fifty_two_week_low": 100.0,
+            },
+            "expirations": [
+                {"summary": {"avg_implied_volatility": 0.55}},
+            ],
+        }
+        result = detect_punctuated_equilibrium(data)
+        self.assertTrue(result["is_punctuation"])
+        self.assertEqual(result["type"], "fear_punctuation")
+
+
 class TestRecommendStrategies(unittest.TestCase):
-    def test_recommend_returns_list(self):
-        """Should return a dict with recommendations."""
+    def test_recommend_returns_expected_keys(self):
+        """Should return a dict with all expected Darwinian keys."""
         result = recommend_strategies({
             "ticker": "TEST",
             "current_price": 100.0,
             "fetch_time": "2026-01-01",
+            "stock_info": {
+                "sector": "Consumer Defensive",
+                "beta": 0.6,
+                "dividend_yield": 0.03,
+                "market_cap": 200e9,
+                "fifty_two_week_high": 120.0,
+                "fifty_two_week_low": 80.0,
+            },
             "expirations": [
                 {
                     "expiration": "2026-01-15",
@@ -164,11 +238,14 @@ class TestRecommendStrategies(unittest.TestCase):
             ],
         })
         self.assertIn("recommendations", result)
+        self.assertIn("darwinian_quality", result)
+        self.assertIn("punctuated_equilibrium", result)
         self.assertIn("sentiment", result)
         self.assertIn("volatility", result)
+        self.assertIn("philosophy", result)
         self.assertGreater(len(result["recommendations"]), 0)
 
-    def test_no_data_error(self):
+    def test_no_price_error(self):
         """No current price should return error."""
         result = recommend_strategies({"ticker": "TEST", "expirations": []})
         self.assertIsInstance(result, list)

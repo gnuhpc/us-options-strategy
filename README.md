@@ -1,22 +1,27 @@
-# US Options Strategy Recommender
+# US Options Strategy Recommender — 达尔文投资哲学融合版
 
-A Hermes Agent skill that fetches live US stock options data and recommends appropriate trading strategies based on market sentiment, implied volatility, and risk profile.
+A Hermes Agent skill that fetches live US stock options data and recommends appropriate trading strategies based on **Darwinian investment philosophy** — integrating the principles from Pulak Prasad's book "Investment Lessons from Darwin" (《我从达尔文那里学到的投资知识》).
 
 [![GitHub](https://img.shields.io/badge/GitHub-gnuhpc%2Fus--options--strategy-blue)](https://github.com/gnuhpc/us-options-strategy)
 
-## What It Does
+## 达尔文核心哲学 (Core Philosophy)
 
-1. **Fetches** live options chain data from Yahoo Finance (yfinance)
-2. **Analyzes** market sentiment via put/call ratios, IV skew, and volume/OI data
-3. **Recommends** suitable options strategies with specific strike prices, risk metrics, and reasoning
+This skill is unique: it doesn't just recommend strategies — it tells you when **NOT to trade**.
+
+| Principle | Meaning |
+|-----------|---------|
+| **Type I Error Avoidance** | The best investors are the best rejectors. Avoiding bad trades > chasing good ones. |
+| **Quality Matters** | Only trade options on high-quality businesses (ROCE filter, zero debt, stable industry). |
+| **Punctuated Equilibrium** | Most days: do nothing. Wait for market dislocations (2008, 2020 style). |
+| **Compound Over Time** | Prefer income strategies (selling premium) for steady compounding. |
+| **Be the Bee** | Simple, repeatable process beats complex predictions. |
 
 ## Quick Start
 
 ```bash
-# Install dependencies
 pip install yfinance pandas
 
-# Fetch data and get recommendations
+# Darwinian options analysis
 python3 scripts/fetch_options.py AAPL 3 | python3 scripts/strategies.py
 ```
 
@@ -25,77 +30,81 @@ python3 scripts/fetch_options.py AAPL 3 | python3 scripts/strategies.py
 ```json
 {
   "ticker": "AAPL",
-  "sentiment": { "label": "neutral", "confidence": 0.12 },
-  "volatility": { "label": "normal", "implied_volatility": 0.28 },
+  "darwinian_quality": {
+    "label": "exceptional",
+    "score": 0.75,
+    "details": ["Low beta", "Stable sector", "Large cap", "Pays dividend"]
+  },
+  "punctuated_equilibrium": {
+    "is_punctuation": false,
+    "type": "none",
+    "darwinian_advice": "Most of the time, the best action is no action."
+  },
   "recommendations": [
     {
-      "name": "Cash-Secured Put",
-      "direction": "neutral/bullish",
-      "risk_level": "low",
-      "score": 0.70,
-      "suggested_strikes": [215.0]
-    },
-    {
-      "name": "Iron Condor",
-      "direction": "neutral",
-      "risk_level": "medium",
-      "score": 0.65,
-      "suggested_strikes": [200.0, 240.0]
-    },
-    {
-      "name": "Calendar Spread",
-      "direction": "neutral",
-      "risk_level": "low",
-      "score": 0.55
+      "name": "Cash-Secured Put (达尔文收入策略)",
+      "score": 0.80,
+      "recommended": true,
+      "darwinian_rationale": "Getting paid to wait for a punctuation event..."
     }
   ]
 }
 ```
 
-## Strategy Selection Logic
+## Darwinian Strategy Selection
 
-| Sentiment | Volatility | Recommended Strategies |
-|-----------|-----------|----------------------|
-| Bullish | High | Bull Put Spread (credit) |
-| Bullish | Low/Normal | Long Call, Bull Call Spread |
-| Bearish | High | Bear Call Spread (credit) |
-| Bearish | Low/Normal | Long Put, Bear Put Spread |
-| Neutral | High | Iron Condor, Short Straddle |
-| Neutral | Low | Long Straddle (breakout bet) |
-| Neutral | Normal | Calendar Spread, Covered Call |
-| Any | Any | Cash-Secured Put (income) |
+| Sentiment | Volatility | Quality | Top Recommendation |
+|-----------|-----------|---------|-------------------|
+| Bullish | High | Good+ | Bull Put Spread (Credit) |
+| Bullish | Low/Normal | Exceptional | Long Call (small bet) |
+| Bearish | High | Good+ | Bear Call Spread (Credit) |
+| Neutral | High | Good+ | Iron Condor |
+| Neutral | Normal | Any | Calendar Spread |
+| **Any** | **Any** | **Poor** | **🚫 DON'T TRADE** |
+| **Punctuation** | **Any** | **Good+** | **Capitalize on dislocation** |
 
 ## Scripts
 
 ### `scripts/fetch_options.py <TICKER> [NUM_EXPIRATIONS]`
-Fetches options chain data. Outputs JSON to stdout.
+Fetches options chain data from Yahoo Finance. Outputs JSON.
 
 ### `scripts/strategies.py [data_file]`
-Analyzes options data and recommends strategies. Reads from stdin or file.
+Darwinian strategy recommendation engine. Reads from stdin or file.
 
-## Signals Used
+Key functions:
+- `assess_darwinian_quality()` — evaluates underlying business quality
+- `detect_punctuated_equilibrium()` — finds market dislocations
+- `recommend_strategies()` — full Darwinian recommendation engine
 
-| Signal | Source | Interpretation |
-|--------|--------|----------------|
-| Put/Call Volume Ratio | Options chain | >1.3 = bearish, <0.5 = bullish |
-| Put/Call OI Ratio | Options chain | >1.3 = bearish, <0.6 = bullish |
-| IV Skew | OTM put IV - OTM call IV | Positive = fear (bearish), Negative = greed (bullish) |
-| Implied Volatility | Options chain | >50% = high, <20% = low |
-| Liquidity (Volume + OI) | Options chain | Higher = tighter spreads |
+## Darwinian Quality Signals
 
-## Reference
+| Signal | Source | Darwinian Interpretation |
+|--------|--------|------------------------|
+| Sector stability | Stock info | Stable = robust (like multicellular organisms) |
+| Beta | Stock info | Low = robustness; High = fragile |
+| Dividend yield | Stock info | Positive = generates real cash (costly signal) |
+| Market cap | Stock info | Large = multi-layered robustness |
+| 52-week range | Stock info | Near low = potential punctuation event |
+| Put/Call Volume | Options chain | Costly signal — real money at work |
+| IV Level | Options chain | High = fear premium; Low = complacency |
 
-See `references/strategies.md` for detailed explanations of each strategy (Long Call, Iron Condor, Calendar Spread, Covered Call, Wheel, etc.).
+## Book Reference
+
+This skill integrates the philosophy from **"Investment Lessons from Darwin"** (《我从达尔文那里学到的投资知识》) by Pulak Prasad, founder of Nalada Capital. Key chapters:
+
+- **Ch 1**: Bumblebees — Type I error avoidance (don't lose money)
+- **Ch 2**: Silver Foxes — ROCE as the single filter
+- **Ch 3**: Robustness — multi-layered business stability
+- **Ch 4**: Pavlovian Responses — ignore short-term noise
+- **Ch 5**: Darwin's DCF — historical analysis > predictions
+- **Ch 6**: Convergent Evolution — pattern recognition
+- **Ch 7**: Green Frogs vs Guppies — costly signals matter
+- **Ch 8-9**: Punctuated Equilibrium — use dislocations
+- **Ch 10**: Rabbits & Compound Interest — patience pays
+- **Conclusion**: Be the Bee — simple, repeatable process
 
 ## As a Hermes Agent Skill
 
-This project is structured as a **Hermes Agent skill**. When loaded:
-
-1. The skill auto-loads via `skills_list` when the user mentions options trading
-2. It guides the agent through fetching data and analyzing strategies
-3. The Python scripts handle the heavy lifting (data fetching, analysis)
-
-To install as a Hermes skill:
 ```bash
 ln -s /path/to/us-options-strategy ~/.hermes/skills/us-options-strategy
 ```
@@ -103,7 +112,8 @@ ln -s /path/to/us-options-strategy ~/.hermes/skills/us-options-strategy
 ## Disclaimer
 
 **This is for educational and informational purposes only. Not financial advice.**
-Options trading involves substantial risk and is not suitable for all investors. Past performance does not guarantee future results. Always do your own due diligence and consult a qualified financial advisor.
+As Darwin teaches: **"Survival first, profits second."**
+Options trading involves substantial risk. Always do your own due diligence.
 
 ## License
 

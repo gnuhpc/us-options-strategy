@@ -146,3 +146,68 @@
 ## Educational Disclaimer
 
 **This reference is for educational purposes only.** Options trading carries significant risk. Strategies should be evaluated based on your individual financial situation, risk tolerance, and investment objectives. Consult a qualified financial advisor before making trading decisions.
+
+---
+
+## 达尔文投资哲学视角 (Darwinian Perspective)
+
+This reference is enhanced by the philosophy from **"Investment Lessons from Darwin"** by Pulak Prasad (Nalada Capital).
+
+### 达尔文核心原则 (Core Principles)
+
+| Principle | Biology Analogy | Options Application |
+|-----------|----------------|-------------------|
+| **Type I Error** | Deer avoids predators | Avoid bad trades. "Don't Trade" is a win. |
+| **ROCE as Filter** | Silver fox tameness → all traits | Quality stocks → better options outcomes |
+| **Robustness** | DNA/Protein multi-layered stability | Iron Condors, Credit Spreads survive multiple scenarios |
+| **Proximate vs Ultimate** | Short-term noise vs long-term fitness | Ignore daily noise, focus on business quality |
+| **Convergent Patterns** | Same solutions in similar environments | Same strategies work for quality stocks globally |
+| **Costly Signals** | Peacock's tail — expensive = honest | Volume + OI + IV > News + hype |
+| **Punctuated Equilibrium** | Long stasis, rare change | Most days: do nothing. Wait for dislocations |
+| **Compound Interest** | 1% advantage → 90% in 3000 generations | Small premium edges → large wealth over decades |
+
+### 达尔文策略优先级 (Strategy Priority)
+
+```
+1st Priority:  INCOME STRATEGIES (Cash-Secured Put, Covered Call)
+   → Compound returns over time, like Darwin's rabbits
+
+2nd Priority:  CREDIT SPREADS (Bull Put, Bear Call, Iron Condor)
+   → Sell premium during high IV, be the insurance company
+
+3rd Priority:  DEBIT SPREADS (Bull Call, Bear Put)
+   → Defined risk, limited profit, use sparingly
+
+4th Priority:  DIRECTIONAL (Long Call, Long Put)
+   → Only for exceptional quality, small position size
+
+Last Priority:  DON'T TRADE
+   → Most of the time, this is the best option
+```
+
+### 案例: 达尔文 vs 常规分析
+
+**Conventional approach:**
+- Check sentiment → neutral
+- Check IV → normal
+- Recommend strategies → Calendar Spread, Covered Call
+
+**Darwinian approach (this skill):**
+- Assess business quality → **Exceptional** (high ROCE, no debt, stable industry)
+- Check punctuated equilibrium → **None detected** (normal market)
+- **Primary**: Cash-Secured Put (income on quality)
+- **Secondary**: Covered Call (compound returns)
+- **Rationale**: "Quality business, normal conditions — wait for punctuation or sell premium"
+
+### 何时不交易 (When NOT to Trade)
+
+The Darwinian approach actively recommends **NOT trading**:
+
+1. **Poor quality stock** → 🚫 Don't trade options on it
+2. **No punctuation event** → ⏸️ Wait for dislocation
+3. **Complacency** (all-time high + low IV) → ⚠️ Danger zone
+4. **Fast-changing industry** → 🚫 Avoid (tech, crypto, biotech hype)
+5. **High leverage company** → 🚫 Avoid (bankruptcy risk)
+6. **Turnaround story** → 🚫 Avoid (most fail, per Darwinian evidence)
+
+> "The best investors are the best rejectors." — Pulak Prasad
