@@ -1,14 +1,24 @@
 #!/usr/bin/env python3
 """
 Options Strategy Recommender
-Inspired by "Investment Lessons from Darwin" by Pulak Prasad
+Inspired by 7 options trading bibles:
 
-Integrates Darwinian investment philosophy (Nalada Capital approach):
-1. Type I error avoidance first — the best investors are the best rejectors
-2. Only trade options on high-quality businesses (ROCE filter, robustness)
-3. Use punctuated equilibrium — market dislocations create the best opportunities
-4. Compound over time with income strategies — be the bee, not the butterfly
-5. Trust costly signals (volume, OI, IV) not cheap signals (news, hype)
+1. "Investment Lessons from Darwin" (Pulak Prasad) — Darwinian philosophy
+2. "期权新世界" (Jack) — Dynamic adjustment, directional/non-directional
+3. "期权交易信贷利差和交易势头" (Laverty) — Credit spreads, momentum
+4. "期权波动率与定价" (Natenberg) — BSM model, Greeks, volatility
+5. "期权36课" (王伟等) — Max Pain, PCR, OI analysis
+6. "立体化交易时代：40种期权投资策略" (Overby) — 40 strategies
+7. "波动率交易" (Sinclair) — Variance premium, Kelly, psychology
+
+Integrated framework:
+1. Darwinian quality filter — only trade quality businesses
+2. OI/Max Pain analysis — market structure from 期权36课
+3. PCR + volatility smile — sentiment from 期权新世界 + 波动率定价
+4. Credit/Debit spread prioritization — safety from 信贷利差
+5. Dynamic adjustment framework — 3-step from 期权新世界
+6. Kelly criterion sizing — risk management from 波动率交易
+7. Variance premium detection — edge from 波动率交易
 """
 
 import json
@@ -84,8 +94,327 @@ class StrategyRecommendation:
 
 
 # ============================================================
-# DARWINIAN QUALITY ASSESSMENT
+# MAX PAIN ANALYSIS (期权36课 — 王伟等)
 # ============================================================
+
+def compute_max_pain(calls, puts):
+    """
+    Compute Max Pain level — the strike where option buyers lose the most money.
+    From 期权36课: "最痛点位" — the price level where option sellers (mostly institutions)
+    maximize their profit at expiration.
+    
+    The theory: institutional sellers have the power to pin the stock near Max Pain
+    at expiration. This is a well-known phenomenon in OI analysis.
+    """
+    if not calls or not puts:
+        return None
+    
+    strikes = sorted(set(c["strike"] for c in calls) | set(p["strike"] for p in puts))
+    max_pain_val = float('inf')
+    max_pain_strike = None
+    
+    for strike in strikes:
+        total_pain = 0.0
+        # Calls: buyer pain = max(0, stock_price - strike) * OI
+        for c in calls:
+            pain = max(0, c["strike"] - strike) * c["open_interest"]
+            total_pain += pain
+        # Puts: buyer pain = max(0, strike - stock_price) * OI
+        for p in puts:
+            pain = max(0, strike - p["strike"]) * p["open_interest"]
+            total_pain += pain
+        
+        if total_pain < max_pain_val:
+            max_pain_val = total_pain
+            max_pain_strike = strike
+    
+    return max_pain_strike
+
+
+def analyze_oi_concentration(calls, puts):
+    """
+    Analyze OI concentration to find support/resistance levels.
+    From 期权新世界: "持仓量越大的行权价，代表那个价格点位的抵抗力越强"
+    Put max OI = support level, Call max OI = resistance level.
+    """
+    result = {"support_levels": [], "resistance_levels": []}
+    
+    if not calls or not puts:
+        return result
+    
+    # Find top OI strikes (top 3)
+    top_calls = sorted(calls, key=lambda c: c["open_interest"], reverse=True)[:3]
+    top_puts = sorted(puts, key=lambda p: p["open_interest"], reverse=True)[:3]
+    
+    result["resistance_levels"] = [
+        {"strike": c["strike"], "oi": c["open_interest"]} for c in top_calls
+    ]
+    result["support_levels"] = [
+        {"strike": p["strike"], "oi": p["open_interest"]} for p in top_puts
+    ]
+    
+    return result
+
+
+# ============================================================
+# PCR ANALYSIS (期权36课 — 王伟等)
+# ============================================================
+
+def analyze_pcr(data: dict) -> dict:
+    """
+    Put/Call Ratio analysis for market sentiment.
+    From 期权36课: PCR > 1 = bearish sentiment, PCR < 1 = bullish sentiment.
+    But also: volume PCR = short-term, OI PCR = longer-term.
+    """
+    result = {"volume_pcr": None, "oi_pcr": None, "interpretation": ""}
+    total_call_vol = 0
+    total_put_vol = 0
+    total_call_oi = 0
+    total_put_oi = 0
+    
+    for exp in data.get("expirations", []):
+        for c in exp.get("calls", []):
+            total_call_vol += c.get("volume", 0)
+            total_call_oi += c.get("open_interest", 0)
+        for p in exp.get("puts", []):
+            total_put_vol += p.get("volume", 0)
+            total_put_oi += p.get("open_interest", 0)
+    
+    if total_call_vol > 0:
+        result["volume_pcr"] = round(total_put_vol / total_call_vol, 2)
+    if total_call_oi > 0:
+        result["oi_pcr"] = round(total_put_oi / total_call_oi, 2)
+    
+    # Interpretation
+    vol_pcr = result["volume_pcr"]
+    oi_pcr = result["oi_pcr"]
+    msgs = []
+    if vol_pcr:
+        if vol_pcr > 1.3:
+            msgs.append(f"Volume PCR={vol_pcr} — high bearish sentiment (institutional hedging)")
+        elif vol_pcr > 1.0:
+            msgs.append(f"Volume PCR={vol_pcr} — slightly bearish")
+        elif vol_pcr < 0.5:
+            msgs.append(f"Volume PCR={vol_pcr} — strong bullish sentiment")
+        else:
+            msgs.append(f"Volume PCR={vol_pcr} — neutral")
+    if oi_pcr:
+        if oi_pcr > 1.3:
+            msgs.append(f"OI PCR={oi_pcr} — bearish positioning (puts accumulate)")
+        elif oi_pcr < 0.6:
+            msgs.append(f"OI PCR={oi_pcr} — bullish positioning (calls accumulate)")
+        else:
+            msgs.append(f"OI PCR={oi_pcr} — neutral")
+    
+    result["interpretation"] = "; ".join(msgs) if msgs else "No PCR data available"
+    return result
+
+
+# ============================================================
+# VOLATILITY SMILE / SKEW ANALYSIS (Natenberg — 波动率与定价)
+# ============================================================
+
+def analyze_vol_smile(calls, puts, current_price):
+    """
+    Analyze volatility smile/skew pattern.
+    From Natenberg: The volatility smile reveals market expectations.
+    - Normal smile: OTM puts/calls both have higher IV than ATM
+    - Skew (smirk): OTM puts > OTM calls (common in equities — crash fear)
+    - Reverse skew: OTM calls > OTM puts (common in commodities)
+    """
+    result = {"pattern": "normal", "description": "", "skew_value": 0}
+    
+    if not calls or not puts or not current_price:
+        return result
+    
+    atm_strike = min(calls, key=lambda c: abs(c["strike"] - current_price))["strike"]
+    
+    otm_puts = [p for p in puts if p["strike"] < current_price * 0.95 and p["implied_volatility"]]
+    otm_calls = [c for c in calls if c["strike"] > current_price * 1.05 and c["implied_volatility"]]
+    atm_ivs = []
+    for c in calls:
+        if abs(c["strike"] - current_price) / current_price < 0.03 and c["implied_volatility"]:
+            atm_ivs.append(c["implied_volatility"])
+    for p in puts:
+        if abs(p["strike"] - current_price) / current_price < 0.03 and p["implied_volatility"]:
+            atm_ivs.append(p["implied_volatility"])
+    
+    avg_otm_put_iv = sum(p["implied_volatility"] for p in otm_puts) / max(len(otm_puts), 1)
+    avg_otm_call_iv = sum(c["implied_volatility"] for c in otm_calls) / max(len(otm_calls), 1)
+    avg_atm_iv = sum(atm_ivs) / max(len(atm_ivs), 1)
+    
+    if avg_otm_put_iv and avg_otm_call_iv and avg_atm_iv:
+        skew = (avg_otm_put_iv - avg_otm_call_iv) / avg_atm_iv
+        result["skew_value"] = round(skew, 3)
+        
+        if skew > 0.3:
+            result["pattern"] = "steep_skew"
+            result["description"] = (
+                f"Steep put skew (OTM put IV={avg_otm_put_iv:.1%} vs OTM call IV={avg_otm_call_iv:.1%}). "
+                f"Market is pricing downside protection expensively — fear of crash is high. "
+                f"Natenberg: 'This is typical of equity markets — tail risk premium.'"
+            )
+        elif skew > 0.1:
+            result["pattern"] = "moderate_skew"
+            result["description"] = "Moderate put skew — normal equity market pattern."
+        elif skew < -0.1:
+            result["pattern"] = "reverse_skew"
+            result["description"] = (
+                f"Reverse skew — calls are more expensive than puts. "
+                f"Common in commodities or during FOMO rallies."
+            )
+        else:
+            result["pattern"] = "normal"
+            result["description"] = "Relatively flat smile — balanced market expectations."
+    
+    return result
+
+
+# ============================================================
+# VARIANCE PREMIUM ANALYSIS (Sinclair — 波动率交易)
+# ============================================================
+
+def analyze_variance_premium(data: dict) -> dict:
+    """
+    Variance premium = Implied Vol - Historical Vol.
+    From Euan Sinclair: The variance premium (IV > HV) is the single most
+    reliable edge in options trading. Index options consistently have
+    IV > HV by 2-3 vol points.
+    """
+    result = {
+        "iv": None,
+        "hv_estimate": None,
+        "variance_premium": None,
+        "interpretation": "",
+    }
+    
+    # Get IV from data
+    ivs = []
+    for exp in data.get("expirations", []):
+        iv = exp.get("summary", {}).get("avg_implied_volatility")
+        if iv:
+            ivs.append(iv)
+    
+    if not ivs:
+        return result
+    
+    avg_iv = sum(ivs) / len(ivs)
+    result["iv"] = round(avg_iv, 4)
+    
+    # Estimate HV from stock info if available
+    beta = (data.get("stock_info") or {}).get("beta")
+    if beta:
+        # Rough HV estimate: ~15% for low-beta, ~25% for normal, ~40%+ for high-beta
+        hv_est = 0.12 + beta * 0.08
+        result["hv_estimate"] = round(hv_est, 4)
+        result["variance_premium"] = round(avg_iv - hv_est, 4)
+        
+        vp = result["variance_premium"]
+        if vp > 0.10:
+            result["interpretation"] = (
+                f"Large variance premium ({vp:.1%}). Sinclair: 'IV significantly exceeds HV — "
+                f"options are expensive. Favor selling premium (credit spreads, iron condors). "
+                f"The variance premium is the most reliable edge in options.'"
+            )
+        elif vp > 0.03:
+            result["interpretation"] = (
+                f"Moderate variance premium ({vp:.1%}). Options are slightly expensive. "
+                f"Neutral stance — consider both buying and selling."
+            )
+        elif vp < -0.03:
+            result["interpretation"] = (
+                f"Negative variance premium ({vp:.1%}). Options are cheap. "
+                f"Favor buying premium (long straddle, long call/put)."
+            )
+        else:
+            result["interpretation"] = (
+                f"Variance premium near zero ({vp:.1%}). Options fairly priced. "
+                f"Focus on directional views rather than volatility alone."
+            )
+    
+    return result
+
+
+# ============================================================
+# KELLY CRITERION SIZING (Sinclair — 波动率交易)
+# ============================================================
+
+def kelly_criterion(win_prob: float, avg_win: float, avg_loss: float) -> float:
+    """
+    Kelly Criterion for position sizing.
+    From Euan Sinclair: 'The Kelly criterion is the optimal growth strategy.'
+    f* = (p*b - q) / b where b = avg_win/avg_loss
+    """
+    if avg_loss <= 0:
+        return 0
+    b = avg_win / avg_loss
+    q = 1 - win_prob
+    kelly = (win_prob * b - q) / b
+    return max(0, min(kelly, 0.25))  # Cap at 25% for safety (fractional Kelly)
+
+
+# ============================================================
+# DYNAMIC ADJUSTMENT FRAMEWORK (期权新世界 — Jack)
+# ============================================================
+
+def dynamic_adjustment_framework(data: dict) -> dict:
+    """
+    Dynamic adjustment framework from 期权新世界.
+    Jack's 3-step process: 建仓布局 → 动态调整 → 资金控管
+    
+    Step 1 (建仓布局): Choose direction + strategy based on market conditions
+    Step 2 (动态调整): Adjust position as market evolves
+    Step 3 (资金控管): Manage risk and position sizing
+    """
+    sentiment, confidence = classify_sentiment(data)
+    vol_regime, avg_iv = classify_volatility(data)
+    
+    framework = {
+        "step_1_setup": "",
+        "step_2_adjustment": "",
+        "step_3_money_mgmt": "",
+    }
+    
+    # Step 1: 建仓布局
+    if vol_regime == Volatility.HIGH:
+        framework["step_1_setup"] = (
+            "High IV environment. Jack's advice: '卖方的天下' — seller's market. "
+            "Prefer non-directional income strategies (credit spreads, iron condors). "
+            "If directional, use credit spreads (bull put/bear call) to collect premium."
+        )
+    elif vol_regime == Volatility.LOW:
+        framework["step_1_setup"] = (
+            "Low IV environment. Jack's advice: '买方的机会' — buyer's market. "
+            "Consider long straddle/strangle for volatility breakout. "
+            "If directional, long calls/puts are attractively priced."
+        )
+    else:
+        framework["step_1_setup"] = (
+            "Normal IV environment. Jack's advice: '兵无常势，水无常形' — adapt to conditions. "
+            "Use cash-secured puts for income, or directional strategies based on technical analysis."
+        )
+    
+    # Step 2: 动态调整
+    framework["step_2_adjustment"] = (
+        "Jack's dynamic adjustment rules: "
+        "1) Delta adjustment: When Delta drifts > 0.20 from neutral, adjust. "
+        "2) Rolling: When near expiration and view unchanged, roll to next month. "
+        "3) Stop loss: For sellers, cut position when loss exceeds premium collected. "
+        "4) Adding: Scale into positions on pullbacks, not breakouts. "
+        "5) Hedging: Use OTM options as insurance, not ATM."
+    )
+    
+    # Step 3: 资金控管
+    framework["step_3_money_mgmt"] = (
+        "Jack's capital management: "
+        "1) Never use > 50% of account as margin for sellers. "
+        "2) Buyers: allocate 2-5% of account per trade (lottery tickets). "
+        "3) Sellers: allocate 10-20% of buying power per trade. "
+        "4) Kelly-optimal sizing: use fractional Kelly (25% of full Kelly). "
+        "5) '爆仓原因: 方向不明 + 保证金过高' — know your max loss before entering."
+    )
+    
+    return framework
 
 def assess_darwinian_quality(data: dict) -> tuple:
     """
@@ -374,6 +703,9 @@ def recommend_strategies(data: dict) -> list:
     vol_regime, avg_iv = classify_volatility(data)
     darwin_quality, quality_score, quality_reasons = assess_darwinian_quality(data)
     punctuation = detect_punctuated_equilibrium(data)
+    pcr = analyze_pcr(data)
+    variance_premium = analyze_variance_premium(data)
+    dynamic_adj = dynamic_adjustment_framework(data)
 
     current_price = data.get("current_price")
     recommendations = []
@@ -838,6 +1170,12 @@ def recommend_strategies(data: dict) -> list:
             "details": quality_reasons,
         },
         "punctuated_equilibrium": punctuation,
+        "max_pain": compute_max_pain(calls, puts) if calls and puts else None,
+        "oi_concentration": analyze_oi_concentration(calls, puts) if calls and puts else {},
+        "vol_smile": analyze_vol_smile(calls, puts, current_price) if calls and puts and current_price else {},
+        "pcr_analysis": pcr,
+        "variance_premium": variance_premium,
+        "dynamic_adjustment": dynamic_adj,
         "sentiment": {
             "label": sentiment.value,
             "confidence": round(confidence, 2),
@@ -848,12 +1186,14 @@ def recommend_strategies(data: dict) -> list:
         },
         "warnings": warnings,
         "recommendations": [r.to_dict() for r in recommendations[:7]],
-        "philosophy": "This analysis integrates 'Investment Lessons from Darwin' by Pulak Prasad. "
-                       "Core principles: (1) Type I error avoidance — the best investors are the best "
-                       "rejectors; (2) Quality matters — only trade options on high-quality businesses; "
-                       "(3) Punctuated equilibrium — use rare dislocations, don't trade frequently; "
-                       "(4) Compound over time — prefer income strategies; "
-                       "(5) Be the bee — simple, repeatable process beats complex predictions.",
+        "philosophy": "This analysis integrates 7 options trading bibles: "
+                       "(1) 'Investment Lessons from Darwin' (Prasad) — Type I error, quality filter; "
+                       "(2) '期权新世界' (Jack) — dynamic adjustment, 建仓→调整→风控; "
+                       "(3) '信贷利差和交易势头' (Laverty) — credit spread safety; "
+                       "(4) '期权波动率与定价' (Natenberg) — BSM/Greeks/vol smile; "
+                       "(5) '期权36课' (王伟等) — Max Pain, PCR, OI analysis; "
+                       "(6) '40种期权投资策略' (Overby) — 40 strategies guide; "
+                       "(7) '波动率交易' (Sinclair) — variance premium, Kelly criterion.",
         "disclaimer": "This is for educational/informational purposes only. Not financial advice. "
                        "Options trading involves substantial risk. "
                        "As Darwin teaches: 'Survival first, profits second.' "

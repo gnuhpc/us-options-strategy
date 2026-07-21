@@ -142,6 +142,7 @@ Key functions:
 ## References
 
 See `references/strategies.md` for detailed strategy explanations and Darwinian rationale.
+See `references/book-to-skill-integration.md` for the workflow used to integrate this philosophy — a reusable pattern for incorporating any book's knowledge into a skill.
 
 ## Important Notes
 
